@@ -83,6 +83,10 @@
  *             "ticks" [speed, rpm], "rpmMax" (speed follows SPEED_SCALE), "fuelSeg" / "oilSeg" [fullX, fullY,
  *             emptyX, emptyY], "strip" [left end x, y, h, slant], "topEnd" x; the middle is black, and the map
  *             window is cut see-through while "holeWhen" is on ("hole", "holeInset", "holeRadius" as fill)
+ *   f90dash   effect layer; the whole M5 (F90) theme (shaders.js F90, layout made by tools/gen_f90.py): "path" (the left
+ *             scale's line, target px, at most 32 points, its corners already rounded; the right scale is its mirror),
+ *             "scale" [arc length at 0, at the top mark], "dial" [x, y, r] and "dialAng" [full, empty] (the fuel dial; the oil
+ *             one is its mirror), "line" [x0, x1, y, bottom line end x]; the map window as fill ("hole", "holeWhen")
  *   segbar    effect layer; "max" segments, the first round(signal) lit (e.g. "setupLevel:engine"), "slant" px
  *   icon      image layer; a line icon from icons.js ("icon": gauge, shock, wheel, cog, stack, therm, oilcan, fuel)
  *   arc also takes "start" and "sweep" in degrees (clockwise from 12 o'clock; negative = anticlockwise)
@@ -328,6 +332,7 @@ const TILE_BAR = {
 };
 const TILE_MAX = 14;       // half a flash: red, then the normal colour
 // widgets that show the shift cue (the reaction time is learned only while one of them is drawn)
+const F90_RPM = 8000;             // the M5 (F90) theme's rev scale: 0..8
 const ROAD_DASH_M = 12;            // the Sport road: metres per dash and gap (shaders.js sdash u_road)
 const CUE_TYPES = { lights: true, shiftbar: true, revbar: true, revarc: true, ribbon: true, mtach: true, dial: true };
 // the shift-light test (page.js Alerts): rpm climbs from TEST_FROM to just past the shift point, then holds
@@ -512,8 +517,9 @@ class HudApp {
         this.mapLayout = false;          // the active layout has a map window (a widget with holeWhen "mapUp")
         // the Waze map inside the theme (Cluster Themes, config.waze; waze.js): "mapUp" is on while it shows
         this.waze = this.config.waze ? new Waze(Object.assign({ dataDir: ctx.dataDir }, this.config.waze), this.log, () => this._guard('waze', () => {
-            if (this.mapLayout && this.setting('mapUp') !== this.mapShown) this._rebuild(); else this._status();
+            if (this.mapLayout && this.setting('mapUp') !== this.mapShown) { if (this.mapLive) this._mapLive(); else this._rebuild(); } else this._status();
         })) : null;
+        this.mapLive = false;            // the active layout opens and closes its map window without a rebuild ("mapLive": true)
         this.mapShown = false;           // "mapUp" when the layout was built
         // the screen shared with the other app (screen.js): stepping aside while the driver gave it to the other one
         this.screen = new Screen(this.target === 'panel' ? 'cluster' : 'hud', ctx.dataDir, this.log,
@@ -1793,6 +1799,7 @@ class HudApp {
         }
         this.problem = null;
         this.mapLayout = layout.widgets.some((w) => w.holeWhen === 'mapUp');
+        this.mapLive = layout.mapLive === true;
         this._wazeWant();
         this.layoutSlots = layout.slots || [];
         this.layoutTheme = layout.theme && THEMES[layout.theme] ? layout.theme : null;
@@ -2008,6 +2015,31 @@ class HudApp {
             c.uniform(ref, 'u_strip', w.strip);
             c.uniform(ref, 'u_topEnd', [w.topEnd]);
             c.uniform(ref, 'u_road', w.road ? [w.road[0], w.road[1], 0, 1] : [0, 1, 0, 0]);
+        } else if (w.type === 'f90dash') {
+            // the left scale's line: points (layer px) and the arc length at each (the shader mirrors it for the right)
+            const pts = [], cum = [];
+            let acc = 0;
+            w.path.forEach((pt, i) => {
+                if (i) acc += Math.hypot(pt[0] - w.path[i - 1][0], pt[1] - w.path[i - 1][1]);
+                pts.push(pt[0] - w.x, pt[1] - w.y); cum.push(acc);
+            });
+            while (pts.length < 64) pts.push(0);
+            while (cum.length < 32) cum.push(0);
+            c.uniform(ref, 'u_size', [w.w, w.h]);
+            c.uniform(ref, 'u_path', pts.slice(0, 64), { type: 'vec2' });
+            c.uniform(ref, 'u_cum', cum.slice(0, 32), { type: 'float' });
+            c.uniform(ref, 'u_n', [Math.min(32, w.path.length)]);
+            c.uniform(ref, 'u_scale', [w.scale[0], w.scale[1], 0, acc]);
+            const us = this.setting('units') === 'us';
+            c.uniform(ref, 'u_ticks', us ? [10, 2, 8, 2] : [8, 2, 8, 2]);       // 0..200 mph by 20 / 0..320 km/h by 40; 0..8
+            const [redFrom, orange] = this._redMarks(F90_RPM);
+            c.uniform(ref, 'u_redFrom', [redFrom]);
+            c.uniform(ref, 'u_orange', [orange]);
+            c.uniform(ref, 'u_dial', [w.dial[0] - w.x, w.dial[1] - w.y, w.dial[2], 0]);
+            c.uniform(ref, 'u_dialAng', w.dialAng);
+            c.uniform(ref, 'u_line', [w.line[0] - w.x, w.line[1] - w.x, w.line[2] - w.y, w.line[3] - w.x]);
+            c.uniform(ref, 'u_hole', this._hole(w));
+            c.uniform(ref, 'u_holeR', [this._holeRadius(w)]);
         } else if (w.type === 'mdash') {
             const ty = w.tyres || [0, 0, 0], L = w.gaugeL || {}, R = w.gaugeR || {}, b = w.blade || {};
             const bars = Array.isArray(w.segbars) ? w.segbars.slice(0, 4) : [];
@@ -2282,6 +2314,16 @@ class HudApp {
 
     _holeRadius(w) { return isNum(w.holeRadius) ? w.holeRadius : 28; }
 
+    /**
+     * A "mapLive" layout's map window, opened or closed as the Waze map comes or goes: only its effect layers' u_hole
+     * changes (no widget of it toggles on mapUp), so the theme stays up instead of being built again.
+     */
+    _mapLive() {
+        this.mapShown = this.setting('mapUp');
+        this.widgets.forEach((x) => { if (!x.sheet && x.w.holeWhen === 'mapUp' && x.c) x.c.uniform(x.ref, 'u_hole', this._hole(x.w)); });
+        this._status();
+    }
+
     _tick() {
         const now = Date.now();
         this._smoothRpm(now);
@@ -2495,6 +2537,19 @@ class HudApp {
             x.last = key;
             x.c.uniform(x.ref, 'u_value', [q]);
             x.c.uniform(x.ref, 'u_hot', [hot]);
+        } else if (w.type === 'f90dash') {
+            const us = this.setting('units') === 'us';
+            const sp = this._raw('speed'), rpm = this._raw('rpm'), fuel = this._raw('fuel'), oil = this._raw('oil');
+            const q = (v) => Math.round(Math.min(1, Math.max(0, v)) * 1000) / 1000;
+            const vals = [q(isNum(sp) ? (us ? sp * 0.621371 / 200 : sp / 320) : 0), q(isNum(rpm) ? rpm / F90_RPM : 0),
+                q(isNum(fuel) ? fuel : 0), q(isNum(oil) ? (oil - 50) / 100 : 0)];
+            const key = vals.join('|');
+            if (!force && key === x.last) return;
+            x.last = key;
+            x.c.uniform(x.ref, 'u_speed', [vals[0]]);
+            x.c.uniform(x.ref, 'u_rpm', [vals[1]]);
+            x.c.uniform(x.ref, 'u_fuel', [vals[2]]);
+            x.c.uniform(x.ref, 'u_oil', [vals[3]]);
         } else if (w.type === 'sdash') {
             const us = this.setting('units') === 'us';
             const sp = this._raw('speed'), rpm = this._raw('rpm'), fuel = this._raw('fuel'), oil = this._raw('oil');

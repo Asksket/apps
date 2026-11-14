@@ -3,12 +3,19 @@
   "apps": {
     "path": "apps/*",
     "manifest": "app.json",
-    "mguHmi": ["ID7"],
+    "mguHmi": [
+      "ID7"
+    ],
     "build": {
       "python": "kit/tools/build.py",
-      "args": ["{id}"],
+      "args": [
+        "{id}"
+      ],
       "sdk": "oap-sdk",
       "output": "dist/{id}@{version}.tgz"
-    }
+    },
+    "exclude": [
+      "idrive_hud_widgets"
+    ]
   }
 }

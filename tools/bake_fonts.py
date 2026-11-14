@@ -100,6 +100,12 @@ CLUSTER_FONTS = [
     ('b_unit', 'Outfit[wght].ttf', 26, UPPER + LOWER + '/', 0, 'Medium'),
     ('b_gear', 'Outfit[wght].ttf', 32, DIGITS + 'PRNDSM-', 0, 'SemiBold'),
     ('b_scale', 'Outfit[wght].ttf', 20, DIGITS, 0, 'Medium'),
+    # M5 (F90): BMW's Live Cockpit numbers are a narrow grotesque; Barlow Semi Condensed is the nearest one shipped
+    ('f_num', 'BarlowSemiCondensed-SemiBold.ttf', 40, DIGITS + '/'),
+    ('f_speed', 'BarlowSemiCondensed-SemiBold.ttf', 118, DIGITS + '-'),
+    ('f_gear', 'BarlowSemiCondensed-SemiBold.ttf', 136, DIGITS + 'PRNDSM-'),
+    ('f_unit', 'BarlowSemiCondensed-Medium.ttf', 28, LOWER + UPPER + DIGITS + '°/-.x '),
+    ('f_lbl', 'BarlowCondensed-SemiBold.ttf', 23, UPPER + DIGITS + ' .'),
 ]
 FONTS = {'idrive_hud_widgets': HUD_FONTS, 'cluster_themes': CLUSTER_FONTS}
 PAD = 2

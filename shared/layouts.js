@@ -43,6 +43,7 @@ const TYPES = {
     ribbon: ['curve', 'span'],
     deco: [],
     nav: [],
+    f90dash: ['path', 'scale', 'dial', 'dialAng', 'line'],
 };
 const CLASSES = ['ambient', 'content', 'overlay', 'alert'];
 
