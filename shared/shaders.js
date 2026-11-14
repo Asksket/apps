@@ -1560,34 +1560,42 @@ void main() {
     float sv = mix(s0, s1, v);
     float f = (s - s0) / (s1 - s0);
 
-    if (best < 120.0) {
-        // the glow behind the needle, along the line and fading inwards
-        if (s <= sv + 2.0 && s >= s0 - 30.0 && sd > -3.0) {
-            float g = exp(-(sv - s) / 150.0) * pow(1.0 - clamp(sd / 95.0, 0.0, 1.0), 2.0);
-            c = put(c, RED * 0.85, g * 0.75);
+    if (best < 140.0) {
+        // from 0 up to the value the band inside the line is lit: grey, brightest by the line and towards the needle
+        if (s >= s0 - 6.0 && s <= sv && sd > 0.0 && sd < 100.0) {
+            float toward = 0.18 + 0.82 * exp(-(sv - s) / 320.0);
+            float inward = pow(1.0 - sd / 100.0, 1.6);
+            float lit = toward * inward * smoothstep(s0 - 6.0, s0 + 10.0, s);
+            c = put(c, vec3(0.86, 0.87, 0.9), lit * 0.8);
+            // red dots right behind the needle
+            vec2 cell = mod(p, 6.0) - 3.0;
+            float spot = cov(length(cell) - 1.4);
+            float near = exp(-(sv - s) / 55.0) * (1.0 - smoothstep(40.0, 95.0, sd));
+            c = put(c, RED, spot * near * 0.9);
         }
-        // the line: white, fading out at both ends
-        float ends = smoothstep(0.0, 70.0, s) * smoothstep(0.0, 50.0, total - s);
-        c = put(c, WHITE, cov(abs(sd) - 1.5) * ends);
-        // the marks inside it, a long one at each number and short ones between
+        // the line: white, fading out at both ends, with a faint second line inside it
+        float ends = smoothstep(0.0, 40.0, s) * smoothstep(0.0, 30.0, total - s);
+        c = put(c, WHITE, cov(abs(sd) - 1.6) * ends);
+        c = put(c, GREY, cov(abs(sd - 7.0) - 0.8) * ends * 0.5);
+        // the marks inside it: a long one at each number and a short one between two
         vec2 tk = right ? u_ticks.zw : u_ticks.xy;
         float stp = (s1 - s0) / (tk.x * tk.y);
         float t = (s - s0) / stp, k = floor(t + 0.5);
         float along = abs(t - k) * stp;
         bool major = mod(k, tk.y) < 0.5;
-        float len = major ? 24.0 : 12.0;
+        float len = major ? 26.0 : 14.0;
         if (k >= 0.0 && k <= tk.x * tk.y && sd > 0.0) {
-            float a = cov(along - (major ? 1.6 : 1.0)) * cov(sd - len) * smoothstep(1.0, 3.0, sd);
+            float a = cov(along - (major ? 1.7 : 1.1)) * cov(sd - len) * smoothstep(2.0, 4.0, sd);
             c = put(c, major ? WHITE : GREY, a);
         }
-        // the rev scale: orange then red marks outside the line, from the redline on
+        // the rev scale: red then orange dashes outside the line, from the redline on
         if (right && f >= u_orange && f <= 1.0 && sd < -5.0 && sd > -15.0) {
-            c = put(c, f >= u_redFrom ? RED : ORANGE, cov(abs(sd + 10.0) - 4.0));
+            float gap = cov(abs(mod(s - s0, 46.0) - 23.0) - 19.0);
+            c = put(c, f >= u_redFrom ? RED : vec3(1.0, 0.82, 0.1), cov(abs(sd + 10.0) - 3.5) * gap);
         }
-        // the needle: a red bar across the line, with a bright core
-        float nb = cov(abs(s - sv) - 3.5) * smoothstep(-12.0, -6.0, sd) * (1.0 - smoothstep(64.0, 72.0, sd));
+        // the needle: a red bar across the line
+        float nb = cov(abs(s - sv) - 3.0) * smoothstep(-14.0, -8.0, sd) * (1.0 - smoothstep(88.0, 96.0, sd));
         c = put(c, RED, nb);
-        c = put(c, vec3(1.0, 0.75, 0.75), cov(abs(s - sv) - 1.0) * smoothstep(-6.0, 0.0, sd) * (1.0 - smoothstep(40.0, 60.0, sd)) * 0.6);
     }
 
     // the corner dial: fuel (left) or oil temperature (right), its value as a red mark
@@ -1615,8 +1623,14 @@ void main() {
 
     // the line under the speed (left) and under the gear (right), fading in from the outer end
     if (q.x >= u_line.x && q.x <= u_line.y) {
-        float fade = smoothstep(u_line.x, u_line.x + 120.0, q.x) * (1.0 - smoothstep(u_line.y - 4.0, u_line.y, q.x));
-        c = put(c, WHITE, cov(abs(q.y - u_line.z) - 1.2) * fade);
+        float x0 = u_line.x + 56.0;
+        if (q.x < x0 - 8.0) {
+            // the double dash at the outer end
+            c = put(c, WHITE, cov(abs(abs(q.y - u_line.z) - 4.0) - 1.6));
+        } else if (q.x >= x0) {
+            float fade = smoothstep(x0, x0 + 60.0, q.x) * (1.0 - smoothstep(u_line.y - 4.0, u_line.y, q.x));
+            c = put(c, WHITE, cov(abs(q.y - u_line.z) - 1.2) * (0.35 + 0.65 * fade));
+        }
     }
     // the bottom line, on from the scale's bottom end towards the middle
     vec2 b0 = u_path[0];
