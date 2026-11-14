@@ -2,7 +2,7 @@
   "id": "cluster_themes",
   "title": "Cluster Themes",
   "description": "Redraws the instrument cluster: GT3 race dash, M-style, Sport, Minimal, Roadster, Track, Drag, Rally, Retro 80s, Cruise, Dyno (BMW-coloured readout tiles) or Ribbon (with holiday editions), with shift lights, boost, temps, tyres, a G-meter and a 0-60 timer",
-  "version": "0.17.3",
+  "version": "0.17.4",
   "vendor": "custom",
   "loggingId": "OAC1",
   "iconGlyph": "CLU",
@@ -124,6 +124,10 @@
           "M"
         ],
         [
+          "m_waze",
+          "M + Waze map"
+        ],
+        [
           "f90",
           "M view (M5 F90 / M3)"
         ],
@@ -202,6 +206,10 @@
           "M"
         ],
         [
+          "m_waze",
+          "M + Waze map"
+        ],
+        [
           "f90",
           "M view (M5 F90 / M3)"
         ],
@@ -266,6 +274,10 @@
           "M"
         ],
         [
+          "m_waze",
+          "M + Waze map"
+        ],
+        [
           "f90",
           "M view (M5 F90 / M3)"
         ],
@@ -328,6 +340,10 @@
         [
           "m",
           "M"
+        ],
+        [
+          "m_waze",
+          "M + Waze map"
         ],
         [
           "f90",
